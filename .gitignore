@@ -1,0 +1,45 @@
+# ===== BACKEND JAVA / SPRING =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+*.log
+
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+
+# Maven
+.mvn/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# ===== FRONTEND NODE/REACT =====
+node_modules/
+dist/
+build/
+
+# Logs gerais
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== IDEs =====
+# IntelliJ
+.idea/
+*.iws
+*.ipr
+
+# VSCode
+.vscode/
+
+# ===== Sistema operacional =====
+.DS_Store
+Thumbs.db
