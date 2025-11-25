@@ -1,11 +1,13 @@
 package com.meuapp.feedback.service;
 
 import com.meuapp.feedback.domain.Feedback;
+import com.meuapp.feedback.domain.Restaurant;
 import com.meuapp.feedback.dto.CupomResponseDTO;
 import com.meuapp.feedback.dto.FeedbackRequestDTO;
 import com.meuapp.feedback.dto.FeedbackResponseDTO;
 import com.meuapp.feedback.exception.BusinessException;
 import com.meuapp.feedback.repository.FeedbackRepository;
+import com.meuapp.feedback.repository.RestaurantRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -17,15 +19,32 @@ import java.util.UUID;
 public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
+    private final RestaurantRepository restaurantRepository;
 
-    public FeedbackService(FeedbackRepository feedbackRepository) {
+    // 👇 agora o service recebe também o RestaurantRepository
+    public FeedbackService(FeedbackRepository feedbackRepository,
+                           RestaurantRepository restaurantRepository) {
         this.feedbackRepository = feedbackRepository;
+        this.restaurantRepository = restaurantRepository;
+    }
+
+    /**
+     * Retorna o restaurante padrão (por enquanto id = 1).
+     * Se não existir, lança BusinessException (melhor do que NullPointer).
+     */
+    private Restaurant getDefaultRestaurant() {
+        Long defaultRestaurantId = 1L; // hoje você só tem 1 restaurante
+
+        return restaurantRepository.findById(defaultRestaurantId)
+                .orElseThrow(() -> new BusinessException(
+                        "Restaurante padrão (id=" + defaultRestaurantId + ") não encontrado. " +
+                                "Cadastre um restaurante na tabela 'restaurant'."));
     }
 
     /**
      * Processa o feedback (POST /feedback)
      * - valida LGPD e regras
-     * - salva o feedback
+     * - salva o feedback já amarrando ao restaurante
      * - se nota < 4 -> gera cupom imediato
      * - se nota >= 4 -> cupom fica null (será gerado via gerarCupom)
      * - devolve FeedbackResponseDTO com cupom (se já gerado) ou null
@@ -49,7 +68,10 @@ public class FeedbackService {
             throw new BusinessException("Para notas 1 a 3 é obrigatório informar uma mensagem negativa.");
         }
 
-        // 3. Construir entidade
+        // 3. Descobrir o restaurante (HOJE: sempre o padrão id=1)
+        Restaurant restaurant = getDefaultRestaurant();
+
+        // 4. Construir entidade já com restaurant
         Feedback feedback = Feedback.builder()
                 .nome(dto.getNome())
                 .email(dto.getEmail())
@@ -59,9 +81,10 @@ public class FeedbackService {
                 .consentimentoLgpd(dto.isConsentimentoLgpd())
                 .mensagemNegativa(dto.getNota() < 4 ? dto.getMensagemNegativa() : null)
                 .dataCriacao(LocalDateTime.now())
+                .restaurant(restaurant)          // 👈 IMPORTANTE!
                 .build();
 
-        // 4. Se nota alta, set linkGoogle
+        // 5. Se nota alta, set linkGoogle
         if (dto.getNota() >= 4) {
             feedback.setLinkGoogle("https://search.google.com/local/writereview");
             // cupom permanece null por enquanto
@@ -71,16 +94,16 @@ public class FeedbackService {
             feedback.setCupom(cupom);
         }
 
-        // 5. salvar e retornar
+        // 6. salvar e retornar
         Feedback salvo = feedbackRepository.save(feedback);
 
         String tipo = salvo.getNota() >= 4 ? "ALTA" : "BAIXA";
         String mensagem;
         if ("ALTA".equals(tipo)) {
-            // mensagem para nota alta (sua versão ajustada)
             mensagem = "Muito obrigado pelo seu feedback!\n" +
                     "Falta pouco para liberar seu cupom 🎁\n" +
-                    "Agora complete sua avaliação no Google escolhendo as " + salvo.getNota() + " estrelas digitadas nesta página.\n" +
+                    "Agora complete sua avaliação no Google escolhendo as "
+                    + salvo.getNota() + " estrelas digitadas nesta página.\n" +
                     "Clique no botão abaixo somente após concluir sua avaliação no Google.\n\n" +
                     "[ Botão ] Já fiz minha avaliação\n\n" +
                     "Após isso, seu cupom será exibido automaticamente!";
@@ -100,10 +123,7 @@ public class FeedbackService {
     }
 
     /**
-     * Endpoint que será chamado pelo front quando o usuário confirmar que avaliou no Google.
-     * - valida que feedback existe e nota >=4
-     * - valida que cupom ainda não foi gerado
-     * - gera, salva e retorna o cupom
+     * Endpoint chamado quando o usuário confirma que avaliou no Google.
      */
     public CupomResponseDTO gerarCupom(Long feedbackId) {
         Feedback feedback = feedbackRepository.findById(feedbackId)
@@ -114,11 +134,9 @@ public class FeedbackService {
         }
 
         if (feedback.getCupom() != null && !feedback.getCupom().isBlank()) {
-            // já gerado anteriormente
             return new CupomResponseDTO(feedback.getCupom(), "Cupom já foi gerado anteriormente.");
         }
 
-        // gerar código, salvar e retornar
         String cupom = gerarCodigoCupom();
         feedback.setCupom(cupom);
         feedbackRepository.save(feedback);
@@ -129,7 +147,8 @@ public class FeedbackService {
     // gera um cupom no formato MEUAPP-YYYYMMDD-XXXXXX (6 chars alfanum)
     private String gerarCodigoCupom() {
         String datePart = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE); // YYYYMMDD
-        String rand = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 6).toUpperCase();
+        String rand = UUID.randomUUID().toString().replaceAll("-", "")
+                .substring(0, 6).toUpperCase();
         return "MEUAPP-" + datePart + "-" + rand;
     }
 }

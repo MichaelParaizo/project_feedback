@@ -24,16 +24,35 @@ public class Feedback {
 
     private int nota;
 
-    private boolean consentimentoLgpd;
-
+    private Boolean consentimentoLgpd;
 
     private String mensagemNegativa;
-
-//    private String mensagem;
 
     private LocalDateTime dataCriacao;
 
     private String linkGoogle;
 
     private String cupom;
+
+    @ManyToOne
+    @JoinColumn(name = "restaurant_id")
+    private Restaurant restaurant;
+
+    @Column(nullable = false)
+    private Boolean cupomValidado = false;
+
+    private LocalDateTime dataValidacaoCupom;
+
+    // 🚀 Garante que NUNCA será salvo null
+    @PrePersist
+    public void prePersist() {
+
+        if (cupomValidado == null) {
+            cupomValidado = false;
+        }
+
+        if (dataCriacao == null) {
+            dataCriacao = LocalDateTime.now();
+        }
+    }
 }
