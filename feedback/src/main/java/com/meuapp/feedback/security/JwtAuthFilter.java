@@ -3,6 +3,7 @@ package com.meuapp.feedback.security;
 import com.meuapp.feedback.domain.AdminUser;
 import com.meuapp.feedback.repository.AdminUserRepository;
 import com.meuapp.feedback.service.JwtService;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,37 +32,51 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // Se não tiver token, segue a requisição sem autenticação
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+        try {
 
-        String token = authHeader.substring(7); // remove "Bearer "
-        String email = jwtService.extractEmail(token);
-
-        // Se já estiver autenticado, pula
-        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-            AdminUser admin = adminRepo.findByEmail(email).orElse(null);
-
-            if (admin != null) {
-
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(
-                                admin,
-                                null,
-                                null
-                        );
-
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            // Se não tiver token, segue a requisição sem autenticação
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                filterChain.doFilter(request, response);
+                return;
             }
-        }
 
-        filterChain.doFilter(request, response);
+            String token = authHeader.substring(7); // remove "Bearer "
+            String email = jwtService.extractEmail(token);
+
+            // Se já estiver autenticado, pula
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                AdminUser admin = adminRepo.findByEmail(email).orElse(null);
+
+                if (admin != null) {
+                    UsernamePasswordAuthenticationToken authToken =
+                            new UsernamePasswordAuthenticationToken(
+                                    admin,
+                                    null,
+                                    null
+                            );
+
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            }
+
+            filterChain.doFilter(request, response);
+
+        } catch (ExpiredJwtException e) {
+
+            // ⛔ TOKEN EXPIROU — responder 401
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Token expirado");
+
+        } catch (Exception e) {
+
+            // ⛔ QUALQUER ERRO NO TOKEN — 401 também
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Token inválido");
+        }
     }
 }

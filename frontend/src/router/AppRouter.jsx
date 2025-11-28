@@ -1,12 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import LoginPage from "../pages/admin/LoginPage";
 import { useAuth } from "../context/AuthContext";
-import App from "../App";
 
+// Páginas
+import App from "../App";                     // fluxo do cliente
+import LoginPage from "../pages/admin/LoginPage";
+import Dashboard from "../pages/admin/Dashboard";
+
+// Rota protegida do admin
 function PrivateRoute({ children }) {
   const { token } = useAuth();
 
-  if (!token) return <Navigate to="/admin/login" />;
+  // Se não estiver logado → volta para login
+  if (!token) return <Navigate to="/admin/login" replace />;
 
   return children;
 }
@@ -15,7 +20,8 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* CLIENTE - fluxo atual */}
+        
+        {/* CLIENTE */}
         <Route path="/" element={<App />} />
 
         {/* LOGIN ADMIN */}
@@ -26,13 +32,13 @@ export default function AppRouter() {
           path="/admin/dashboard"
           element={
             <PrivateRoute>
-              <div className="text-white p-20">Dashboard em construção...</div>
+              <Dashboard />
             </PrivateRoute>
           }
         />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Catch-all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
